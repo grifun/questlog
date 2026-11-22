@@ -134,7 +134,7 @@ function dueInfo(due) {
   if (!due) return null;
   const today = state.today;
   const d = new Date(due + "T00:00:00");
-  const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short",
+  const label = d.toLocaleDateString(DATE_LOCALE, { weekday: "short", day: "numeric", month: "numeric",
     year: due.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric" });
   const tomorrow = isoDate(addDays(parseIso(today), 1));
   if (due < today) return { cls: "overdue", text: `⏳ overdue · deadline was ${label}` };
@@ -387,8 +387,8 @@ function dayLabel(day) {
   const diff = Math.round((t - d) / 86400000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long",
-    year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric" });
+  return capitalize(d.toLocaleDateString(DATE_LOCALE, { weekday: "long", day: "numeric", month: "long",
+    year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric" }));
 }
 
 const KIND_LABEL = { daily: "daily", weekly: "weekly", once: "quest" };

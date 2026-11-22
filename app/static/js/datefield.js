@@ -15,7 +15,10 @@ function isoDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad
 function parseIso(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
 function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
 
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+// Dates are shown in Czech format: "pá 4. 12.", "prosinec 2026", "pátek 4. prosince".
+const DATE_LOCALE = "cs-CZ";
+const WEEKDAYS = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
+const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 function DateField(el, opts = {}) {
   const todayIso = () => (opts.today && opts.today()) || isoDate(new Date());
@@ -55,7 +58,7 @@ function DateField(el, opts = {}) {
     } else {
       const d = parseIso(value);
       const sameYear = value.slice(0, 4) === todayIso().slice(0, 4);
-      text.textContent = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short",
+      text.textContent = d.toLocaleDateString(DATE_LOCALE, { weekday: "short", day: "numeric", month: "numeric",
         year: sameYear ? undefined : "numeric" });
       btn.classList.add("set");
     }
@@ -64,7 +67,7 @@ function DateField(el, opts = {}) {
 
   function render() {
     el.querySelector(".cal-title").textContent =
-      shown.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+      capitalize(shown.toLocaleDateString(DATE_LOCALE, { month: "long", year: "numeric" }));
     const today = todayIso();
     const offset = (shown.getDay() + 6) % 7;          // Monday-first weeks
     const start = addDays(shown, -offset);
