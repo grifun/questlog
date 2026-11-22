@@ -2,13 +2,13 @@
 
 A personal to-do list with three kinds of quests:
 
-- **One-time quests**, with an optional due date. Checking one off moves it to the history.
+- **One-time quests**, with an optional deadline picked from a calendar. Overdue ones are shown in red, and quests with a deadline are listed first. Checking one off moves it to the history.
 - **Daily quests** are checked off for today and come back unchecked at local midnight.
 - **Weekly quests** are checked off for the week and come back unchecked on Monday at midnight.
 
 The **History** tab lists everything you've checked off, newest first and grouped by day, with no limit on how far back it goes. Older months load as you scroll. You can filter by text or by kind. **↶** removes an entry: for a one-time quest this reopens it, and for a daily or weekly quest checked off in the current period it unchecks it. Right after checking off a one-time quest, a toast also offers **Undo**.
 
-Click a quest to edit its title, notes, kind or due date, or to delete it (its history stays). Drag the **⋮⋮** handle to reorder.
+Click a quest (or its ✎) to edit its title, notes, kind or deadline. 🗑 deletes it after a confirmation (its history stays). Drag the **⋮⋮** handle to reorder.
 
 ## Storage
 
@@ -58,6 +58,6 @@ Same as azkviz. Use the Render blueprint (`render.yaml`) or the `Dockerfile`. Ru
 app/main.py         HTTP routes + password login
 app/questlog.py     quests, daily/weekly periods, history months, sync with storage
 app/storage.py      local folder or S3 backend
-app/static/         index.html, css/style.css, js/app.js
+app/static/         index.html, css/style.css, js/app.js, js/datefield.js (calendar picker)
 tests/test_questlog.py
 ```

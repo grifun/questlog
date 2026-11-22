@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1c120a">
+  <title>Questlog</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📜</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Questlog</h1>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="quests" aria-selected="true">Quests</button>
+      <button role="tab" data-tab="history" aria-selected="false">History</button>
+    </nav>
+    <button class="ghost small" id="logout" hidden>Log out</button>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <!-- login -->
+    <section id="login" hidden>
+      <form id="login-form" class="card login">
+        <h2>Log in</h2>
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Log in</button>
+        <p class="error" id="login-error"></p>
+      </form>
+    </section>
+
+    <!-- quests -->
+    <section id="quests" hidden>
+      <form id="add" class="card add">
+        <input id="add-title" placeholder="New quest…" maxlength="200" autocomplete="off" required>
+        <div class="add-row">
+          <div class="seg" role="radiogroup" aria-label="Kind">
+            <button type="button" data-kind="daily">Daily</button>
+            <button type="button" data-kind="weekly">Weekly</button>
+            <button type="button" data-kind="once" aria-pressed="true">One-time</button>
+          </div>
+          <span class="date-field" id="add-due"></span>
+          <button class="primary" type="submit">Add</button>
+        </div>
+      </form>
+
+      <div class="columns">
+        <div class="col">
+          <div class="group page" data-kind="daily">
+            <h2>Daily <span class="count"></span><span class="hint">resets at midnight</span></h2>
+            <ul class="list"></ul>
+          </div>
+          <div class="group page" data-kind="weekly">
+            <h2>Weekly <span class="count"></span><span class="hint">resets on Monday</span></h2>
+            <ul class="list"></ul>
+          </div>
+        </div>
+        <div class="col">
+          <div class="group page" data-kind="once">
+            <h2>Quests <span class="count"></span></h2>
+            <ul class="list"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- history -->
+    <section id="history" hidden>
+      <div class="history-tools">
+        <input type="search" id="history-search" placeholder="Filter loaded history…">
+        <select id="history-kind">
+          <option value="">All</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="once">One-time</option>
+        </select>
+      </div>
+      <div id="history-list"></div>
+      <div id="history-more" class="muted center"></div>
+    </section>
+  </main>
+
+  <dialog id="edit">
+    <form method="dialog" id="edit-form" class="edit">
+      <h2>Edit quest</h2>
+      <label>Title <input id="edit-title" maxlength="200" required></label>
+      <label>Kind
+        <select id="edit-kind">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="once">One-time</option>
+        </select>
+      </label>
+      <div class="field" id="edit-due-wrap"><span class="field-label">Deadline (optional)</span><span class="date-field inline" id="edit-due"></span></div>
+      <label>Notes <textarea id="edit-notes" rows="4" maxlength="5000"></textarea></label>
+      <div class="edit-buttons">
+        <button type="button" class="danger" id="edit-delete">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="edit-cancel">Cancel</button>
+        <button type="submit" class="primary" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm">
+    <form method="dialog" class="edit">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-text" class="confirm-text"></p>
+      <div class="edit-buttons">
+        <span class="spacer"></span>
+        <button value="cancel" class="ghost" autofocus>Cancel</button>
+        <button value="ok" class="primary" id="confirm-ok">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden><span></span><button class="ghost small">Undo</button></div>
+
+  <script src="/static/js/datefield.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
