@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -47,7 +47,7 @@ def test_add_validates(ql):
     with pytest.raises(QuestError):
         ql.add({"title": "   ", "kind": "daily"})
     with pytest.raises(QuestError):
-        ql.add({"title": "x", "kind": "monthly"})
+        ql.add({"title": "x", "kind": "yearly"})
     with pytest.raises(QuestError):
         ql.add({"title": "x", "kind": "once", "due": "tomorrow"})
     q = ql.add({"title": "  Water   plants ", "kind": "daily"})
@@ -262,3 +262,93 @@ def test_api_flow(client):
     assert any(q["title"] == "Taxes" for q in s["quests"])
     assert client.patch(f"/api/quests/{qid}", json={"title": ""}).status_code == 400
     assert client.delete("/api/quests/nope").status_code == 404
+
+
+# ---------- monthly quests and earlier periods ----------
+
+def test_period_math():
+    from app.questlog import period_end, period_start, shift_period, check_period
+    assert period_of("monthly", date(2026, 12, 31)) == "2026-12"
+    assert shift_period("monthly", "2026-12", 1) == "2027-01"
+    assert shift_period("monthly", "2026-01", -1) == "2025-12"
+    assert period_end("monthly", "2028-02") == date(2028, 2, 29)
+    assert shift_period("weekly", "2026-W01", -1) == "2025-W52"
+    assert period_start("weekly", "2026-W48") == date(2026, 11, 23)
+    assert shift_period("daily", "2026-03-01", -1) == "2026-02-28"
+    for kind, bad in [("daily", "2026-02-30"), ("weekly", "2026-W54"), ("monthly", "2026-13"),
+                      ("monthly", "2026-1"), ("daily", "2026-11"), ("weekly", "2026-11-20")]:
+        with pytest.raises(QuestError):
+            check_period(kind, bad)
+
+
+def test_monthly_resets_on_the_first(ql, clock):
+    q = ql.add({"title": "Pay rent", "kind": "monthly"})
+    ql.complete(q["id"])
+    clock.set(2026, 11, 30, 23, 59)
+    assert quest(ql, "Pay rent")["done"]
+    clock.set(2026, 12, 1, 0, 0)
+    assert not quest(ql, "Pay rent")["done"]
+
+
+def test_view_and_backfill_previous_days(ql, clock):
+    q = ql.add({"title": "Stretch", "kind": "daily"})
+    other = ql.add({"title": "Read", "kind": "daily"})
+    clock.set(2026, 11, 22, 9, 0)
+    ql.complete(q["id"])                                  # done today (22nd)
+    view = ql.period_view("daily", "2026-11-20")
+    assert view["done"] == {} and not view["current"]
+    assert view["prev"] == "2026-11-19" and view["next"] == "2026-11-21"
+    entry = ql.complete(other["id"], period="2026-11-20")  # forgot to tick it on the 20th
+    assert entry["backfilled"] and entry["at"].startswith("2026-11-20T00:00")
+    assert ql.period_view("daily", "2026-11-20")["done"] == {other["id"]: entry["id"]}
+    with pytest.raises(QuestError):
+        ql.complete(other["id"], period="2026-11-20")     # once per period
+    assert not quest(ql, "Read")["done"]                  # today is unaffected
+    assert ql.period_view("daily")["done"] == {q["id"]: quest(ql, "Stretch")["done"] and
+                                                  ql.state["quests"][0]["done"]["entry"]}
+    # the history shows it on the 20th
+    days = [e["at"][:10] for e in ql.history()["entries"]]
+    assert days == ["2026-11-22", "2026-11-20"]
+    # untick the past day again
+    ql.uncheck(other["id"], period="2026-11-20")
+    assert ql.period_view("daily", "2026-11-20")["done"] == {}
+    with pytest.raises(QuestError):
+        ql.uncheck(other["id"], period="2026-11-20")
+
+
+def test_previous_week_across_months(ql, clock):
+    q = ql.add({"title": "Gym", "kind": "weekly"})
+    clock.set(2026, 11, 1, 18, 0)              # Sunday 1 Nov: week 2026-W44 starts in October
+    ql.complete(q["id"])
+    clock.set(2026, 11, 3, 9, 0)
+    view = ql.period_view("weekly", "2026-W44")
+    assert view["start"] == "2026-10-26" and view["end"] == "2026-11-01"
+    assert q["id"] in view["done"]
+    ql.uncheck(q["id"], period="2026-W44")
+    assert ql.period_view("weekly", "2026-W44")["done"] == {}
+    entry = ql.complete(q["id"], period="2026-W44")       # backfilled: dated Monday 26 Oct
+    assert entry["id"].startswith("2026-10.")
+    assert q["id"] in ql.period_view("weekly", "2026-W44")["done"]
+
+
+def test_no_future_periods(ql):
+    q = ql.add({"title": "Stretch", "kind": "daily"})
+    with pytest.raises(QuestError):
+        ql.period_view("daily", "2026-11-22")
+    with pytest.raises(QuestError):
+        ql.complete(q["id"], period="2026-11-22")
+    assert ql.period_view("daily")["next"] is None
+    with pytest.raises(QuestError):
+        ql.period_view("once")
+
+
+def test_api_periods(client):
+    client.post("/api/login", json={"password": "sesame"})
+    s = client.post("/api/quests", json={"title": "Rent", "kind": "monthly"}).json()
+    qid = s["quests"][0]["id"]
+    assert client.post(f"/api/quests/{qid}/done?period=2026-10").status_code == 200
+    v = client.get("/api/period?kind=monthly&period=2026-10").json()
+    assert qid in v["done"] and v["next"] == "2026-11"
+    assert client.get("/api/period?kind=monthly").json()["done"] == {}
+    assert client.post(f"/api/quests/{qid}/undone?period=2026-10").status_code == 200
+    assert client.get("/api/period?kind=monthly&period=2026-12").status_code == 400

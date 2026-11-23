@@ -139,11 +139,8 @@ textarea { resize: vertical; width: 100%; }
 }
 
 /* ---------- two columns: recurring left, one-time right ---------- */
-.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; padding: 0 4px; }
-.col { display: grid; gap: 26px; }
-@media (max-width: 860px) {
-  .columns { grid-template-columns: 1fr; }
-}
+.columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; align-items: start; padding: 0 4px; }
+.col { display: grid; gap: 26px; min-width: 0; }
 
 /* ---------- quest lists ---------- */
 .group h2 {
@@ -155,6 +152,26 @@ textarea { resize: vertical; width: 100%; }
 }
 .group .count { color: #8a5a00; font-size: .95rem; }
 .group .hint { margin-left: auto; font-family: var(--serif); font-style: italic; letter-spacing: 0; font-weight: 400; font-size: .85rem; color: var(--ink-soft); }
+/* period switcher: ‹ Today › */
+.period-nav { display: flex; align-items: center; gap: 4px; margin: -4px 0 8px; }
+.period-nav button {
+  background: none; border: 1px solid transparent; border-radius: 4px; color: var(--heading);
+  font-family: var(--display); font-weight: 700; line-height: 1;
+}
+.pn-prev, .pn-next { width: 28px; height: 26px; font-size: 1.15rem; padding: 0; }
+.pn-prev:hover, .pn-next:not(:disabled):hover { border-color: var(--parch-edge); background: #fffaf0; }
+.pn-next:disabled { opacity: .25; cursor: default; }
+.pn-label { flex: 1; font-size: .82rem; letter-spacing: .04em; padding: 5px 4px; }
+.pn-label:disabled { cursor: default; opacity: 1; color: var(--ink-soft); }
+.group.past .pn-label {
+  background: linear-gradient(180deg, #5a3a1c, #3b2412); color: var(--gold); border-color: var(--gold-deep);
+}
+.group.past .pn-label::after { content: "  ↺"; font-family: var(--serif); }
+.group.past .list {
+  background: repeating-linear-gradient(135deg, rgba(110, 29, 12, .05) 0 8px, transparent 8px 16px);
+  border-radius: 4px;
+}
+
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .empty { color: var(--ink-soft); font-style: italic; padding: 6px 4px; }
 
@@ -281,6 +298,8 @@ textarea { resize: vertical; width: 100%; }
 }
 .badge.daily { color: #0d4a75; border-color: #0d4a75; }
 .badge.weekly { color: #5a1a78; border-color: #5a1a78; }
+.badge.monthly { color: #1d5e2a; border-color: #1d5e2a; }
+.entry time.later { text-align: center; min-width: 2.4em; cursor: help; }
 .entry .undo { background: none; border: 0; color: var(--ink-soft); padding: 2px 6px; border-radius: 4px; }
 .entry .undo:hover { color: var(--heading); background: rgba(110, 29, 12, .1); }
 #history-more { color: #e0c27a; font-style: italic; }
@@ -309,10 +328,31 @@ dialog::backdrop { background: rgba(10, 5, 2, .65); }
 }
 .toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
-@media (max-width: 520px) {
-  .top { gap: 8px; }
-  .top h1 { font-size: 1.15rem; }
-  .tabs button { padding: 5px 9px; }
+@media (max-width: 860px) {
   .group .hint { display: none; }
+}
+
+/* phones: still two columns, so everything gets tighter */
+@media (max-width: 600px) {
+  :root { font-size: 15px; }
+  main { padding: 12px 8px 96px; }
+  .top { gap: 8px; padding: 8px 10px; }
+  .top h1 { font-size: 1.05rem; }
+  .tabs button { padding: 4px 7px; font-size: .8rem; }
+  .add { margin: 4px 2px 18px; }
   .add-row .primary { flex: 1; }
+  .seg button { padding: 6px 8px; }
+  .columns { gap: 12px; padding: 0 2px; }
+  .col { gap: 16px; }
+  .card, .page { padding: 10px 8px; }
+  .group h2 { font-size: .85rem; letter-spacing: .04em; gap: 6px; }
+  .pn-label { font-size: .72rem; letter-spacing: 0; }
+  .pn-prev, .pn-next { width: 22px; }
+  .quest { gap: 6px; padding: 6px 2px; }
+  .quest .check { width: 20px; height: 20px; font-size: 14px; }
+  .quest .title { font-size: .95rem; }
+  .quest .notes, .quest .due { font-size: .8rem; }
+  .quest .handle { display: none; }            /* drag needs room; reorder on a wider screen */
+  .quest .actions { flex-direction: column; gap: 0; }
+  .quest .icon { padding: 0 3px; font-size: .85rem; }
 }

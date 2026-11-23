@@ -42,6 +42,7 @@
           <div class="seg" role="radiogroup" aria-label="Kind">
             <button type="button" data-kind="daily">Daily</button>
             <button type="button" data-kind="weekly">Weekly</button>
+            <button type="button" data-kind="monthly">Monthly</button>
             <button type="button" data-kind="once" aria-pressed="true">One-time</button>
           </div>
           <span class="date-field" id="add-due"></span>
@@ -57,6 +58,10 @@
           </div>
           <div class="group page" data-kind="weekly">
             <h2>Weekly <span class="count"></span><span class="hint">resets on Monday</span></h2>
+            <ul class="list"></ul>
+          </div>
+          <div class="group page" data-kind="monthly">
+            <h2>Monthly <span class="count"></span><span class="hint">resets on the 1st</span></h2>
             <ul class="list"></ul>
           </div>
         </div>
@@ -77,6 +82,7 @@
           <option value="">All</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
           <option value="once">One-time</option>
         </select>
       </div>
@@ -93,6 +99,7 @@
         <select id="edit-kind">
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
           <option value="once">One-time</option>
         </select>
       </label>

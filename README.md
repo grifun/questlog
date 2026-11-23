@@ -1,12 +1,17 @@
 # Questlog
 
-A personal to-do list with three kinds of quests:
+A personal to-do list with four kinds of quests:
 
 - **One-time quests**, with an optional deadline picked from a calendar. Overdue ones are shown in red, and quests with a deadline are listed first. Checking one off moves it to the history.
 - **Daily quests** are checked off for today and come back unchecked at local midnight.
 - **Weekly quests** are checked off for the week and come back unchecked on Monday at midnight.
+- **Monthly quests** are checked off for the month and come back unchecked on the 1st.
 
-The **History** tab lists everything you've checked off, newest first and grouped by day, with no limit on how far back it goes. Older months load as you scroll. You can filter by text or by kind. **↶** removes an entry: for a one-time quest this reopens it, and for a daily or weekly quest checked off in the current period it unchecks it. Right after checking off a one-time quest, a toast also offers **Undo**.
+Daily, weekly and monthly quests are in the left column, one-time quests in the right, on phones too.
+
+**Earlier days, weeks and months:** each daily, weekly and monthly section has a switcher (`‹ Today ›`, `‹ This week ›`, `‹ This month ›`). Use **‹** to go back as far as you like and see which quests you checked off then. You can check off or uncheck quests for that period too, e.g. if you forgot to tick one yesterday. Click the highlighted period name to jump back to the current one. A quest checked off later for an earlier period shows in the history on that period's first day, with **—** instead of a time.
+
+The **History** tab lists everything you've checked off, newest first and grouped by day, with no limit on how far back it goes. Older months load as you scroll. You can filter by text or by kind. **↶** removes an entry: for a one-time quest this reopens it, and for a daily, weekly or monthly quest it unchecks it for that period. Right after checking off a one-time quest, a toast also offers **Undo**.
 
 Click a quest (or its ✎) to edit its title, notes, kind or deadline. 🗑 deletes it after a confirmation (its history stays). Drag the **⋮⋮** handle to reorder.
 
@@ -56,7 +61,7 @@ Same as azkviz. Use the Render blueprint (`render.yaml`) or the `Dockerfile`. Ru
 
 ```
 app/main.py         HTTP routes + password login
-app/questlog.py     quests, daily/weekly periods, history months, sync with storage
+app/questlog.py     quests, daily/weekly/monthly periods, history months, sync with storage
 app/storage.py      local folder or S3 backend
 app/static/         index.html, css/style.css, js/app.js, js/datefield.js (calendar picker)
 tests/test_questlog.py

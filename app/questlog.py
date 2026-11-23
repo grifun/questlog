@@ -10,9 +10,14 @@ Quest kinds:
     once    done once, then it leaves the active list (its history entry keeps a copy, so undo restores it)
     daily   checked off for today; unchecked again from local midnight
     weekly  checked off for this week; unchecked again from Monday, local midnight (ISO weeks)
+    monthly checked off for this month; unchecked again on the 1st
 
 Periods roll over lazily: a recurring quest stores the period it was last checked off in, and it
 shows as done only while that is the current period. Nothing has to run at midnight.
+
+Earlier periods can be viewed and changed too: which quests were done in, say, last week is read
+from the history (every completion entry records its period). Checking a quest off for a past
+period adds an entry dated at the start of that period, marked "backfilled".
 """
 
 from __future__ import annotations
@@ -34,7 +39,8 @@ log = logging.getLogger("questlog")
 MAIN = "questlog.json"
 HISTORY = "history/"
 BACKUPS = "backups/"
-KINDS = ("once", "daily", "weekly")
+KINDS = ("once", "daily", "weekly", "monthly")
+RECURRING = ("daily", "weekly", "monthly")
 MAX_TITLE, MAX_NOTES, MAX_QUESTS = 200, 5000, 2000
 MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 HISTORY_PAGE = 50   # a history request returns whole months until it has at least this many entries
@@ -56,13 +62,51 @@ def _dumps(data) -> str:
 
 
 def period_of(kind: str, d: date) -> str | None:
-    """'2026-11-21' for daily, '2026-W47' for weekly, None for one-time quests."""
+    """'2026-11-21' for daily, '2026-W47' for weekly, '2026-11' for monthly, None for one-time quests."""
     if kind == "daily":
         return d.isoformat()
     if kind == "weekly":
         y, w, _ = d.isocalendar()
         return f"{y}-W{w:02d}"
+    if kind == "monthly":
+        return f"{d.year}-{d.month:02d}"
     return None
+
+
+def period_start(kind: str, period: str) -> date:
+    if kind == "daily":
+        return date.fromisoformat(period)
+    if kind == "weekly":
+        y, w = period.split("-W")
+        return date.fromisocalendar(int(y), int(w), 1)
+    y, m = period.split("-")
+    return date(int(y), int(m), 1)
+
+
+def period_end(kind: str, period: str) -> date:
+    start = period_start(kind, period)
+    if kind == "daily":
+        return start
+    if kind == "weekly":
+        return start + timedelta(days=6)
+    return date(start.year + start.month // 12, start.month % 12 + 1, 1) - timedelta(days=1)
+
+
+def shift_period(kind: str, period: str, step: int) -> str:
+    """The period just before (step < 0) or after (step > 0) the given one."""
+    if step < 0:
+        return period_of(kind, period_start(kind, period) - timedelta(days=1))
+    return period_of(kind, period_end(kind, period) + timedelta(days=1))
+
+
+def check_period(kind: str, period) -> str:
+    try:
+        ok = period_of(kind, period_start(kind, str(period))) == period
+    except (ValueError, TypeError):
+        ok = False
+    if not ok:
+        raise QuestError("That isn't a valid period.")
+    return period
 
 
 # ---------- validation ----------
@@ -216,6 +260,9 @@ class QuestLog:
                 "now": now.isoformat(timespec="seconds"),
                 "today": today.isoformat(),
                 "quests": [self._view_quest(q, today) for q in sorted(self.state["quests"], key=lambda q: q["order"])],
+                # the current period of each recurring kind, and the one before it (for "‹" navigation)
+                "periods": {k: {"period": period_of(k, today), "prev": shift_period(k, period_of(k, today), -1)}
+                            for k in RECURRING},
                 "storage": self.backend.location,
                 "error": self.error,
             }
@@ -269,6 +316,49 @@ class QuestLog:
             except StorageError as e:
                 raise QuestError(f"Can't read the history: {e}", 502)
             return {"entries": [{k: v for k, v in e.items() if k != "quest"} for e in out], "more": more}
+
+    def _entries_for(self, kind: str, period: str) -> dict[str, str]:
+        """{quest id: history entry id} for completions of `kind` quests in `period`, read from
+        the history month files the period touches (a week can span two months)."""
+        months = sorted({period_start(kind, period).strftime("%Y-%m"), period_end(kind, period).strftime("%Y-%m")})
+        listing = self.backend.list(HISTORY)
+        out: dict[str, str] = {}
+        for month in months:
+            name = f"{HISTORY}{month}.json"
+            if month in self._pending:          # being changed right now (inside _mutate)
+                entries = self._pending[month][1]
+            elif name in listing:
+                entries = self._read_month(month, listing[name])[1]
+            else:
+                continue
+            for e in entries:
+                if e.get("kind") == kind and e.get("period") == period and e.get("quest_id"):
+                    out.setdefault(e["quest_id"], e["id"])
+        return out
+
+    def period_view(self, kind: str, period: str | None = None) -> dict:
+        """Which `kind` quests were checked off in `period` (default: the current one)."""
+        if kind not in RECURRING:
+            raise QuestError("Unknown quest kind.")
+        with self.lock:
+            self.refresh()
+            current = period_of(kind, self.now().date())
+            period = current if period is None else check_period(kind, period)
+            if period > current:
+                raise QuestError("That period hasn't started yet.")
+            try:
+                done = self._entries_for(kind, period)
+            except StorageError as e:
+                raise QuestError(f"Can't read the history: {e}", 502)
+            if period == current:      # the main file is authoritative for the current period
+                for q in self.state["quests"]:
+                    if q["kind"] == kind and q.get("done") and q["done"]["period"] == period:
+                        done[q["id"]] = q["done"]["entry"]
+            return {"kind": kind, "period": period, "current": period == current,
+                    "start": period_start(kind, period).isoformat(), "end": period_end(kind, period).isoformat(),
+                    "prev": shift_period(kind, period, -1),
+                    "next": shift_period(kind, period, 1) if period < current else None,
+                    "done": done}
 
     # ----- changing things -----
     def _mutate(self, fn):
@@ -365,35 +455,60 @@ class QuestLog:
                 q["order"] = i + 1
         self._mutate(do)
 
-    def complete(self, qid: str) -> dict:
+    def complete(self, qid: str, period: str | None = None) -> dict:
+        """Check a quest off: now, or (recurring quests only) for an earlier period."""
         def do():
             q = self._find(qid)
             now = self.now()
-            month = now.strftime("%Y-%m")
-            entry = {"id": f"{month}.{_new_id()}", "quest_id": q["id"], "title": q["title"], "kind": q["kind"],
+            entry = {"quest_id": q["id"], "title": q["title"], "kind": q["kind"],
                      "at": now.isoformat(timespec="seconds")}
             if q["kind"] == "once":
                 entry["quest"] = copy.deepcopy(q)       # so undo can bring it back
                 self.state["quests"].remove(q)
             else:
-                period = period_of(q["kind"], now.date())
-                if q["done"] and q["done"]["period"] == period:
-                    raise QuestError("Already done for this period.", 409)
-                entry["period"] = period
-                q["done"] = {"period": period, "entry": entry["id"]}
+                current = period_of(q["kind"], now.date())
+                target = current if period is None else check_period(q["kind"], period)
+                if target > current:
+                    raise QuestError("That period hasn't started yet.")
+                entry["period"] = target
+                if target == current:
+                    if q["done"] and q["done"]["period"] == current:
+                        raise QuestError("Already done for this period.", 409)
+                else:
+                    if q["id"] in self._entries_for(q["kind"], target):
+                        raise QuestError("Already done for that period.", 409)
+                    # Dated at the start of the period it counts for, so the history shows it there.
+                    start = datetime.combine(period_start(q["kind"], target), datetime.min.time(), self.tz)
+                    entry.update(at=start.isoformat(timespec="seconds"), backfilled=True,
+                                 recorded=now.isoformat(timespec="seconds"))
+            month = entry["at"][:7]
+            entry = {"id": f"{month}.{_new_id()}", **entry}
+            if q["kind"] != "once" and entry["period"] == period_of(q["kind"], now.date()):
+                q["done"] = {"period": entry["period"], "entry": entry["id"]}
             self._month_for_edit(month).append(entry)
             return {k: v for k, v in entry.items() if k != "quest"}
         return self._mutate(do)
 
-    def uncheck(self, qid: str) -> dict:
-        """Untick a daily/weekly quest checked off in the current period (removes its history entry)."""
+    def uncheck(self, qid: str, period: str | None = None) -> dict:
+        """Untick a recurring quest for the current period (or an earlier one): removes its history entry."""
         with self.lock:
             self.refresh(force=True)
             q = self._find(qid)
+            if q["kind"] == "once":
+                raise QuestError("One-time quests are reopened from the history.", 409)
+            current = period_of(q["kind"], self.now().date())
+            target = current if period is None else check_period(q["kind"], period)
             done = q.get("done")
-            if q["kind"] == "once" or not done or done["period"] != period_of(q["kind"], self.now().date()):
-                raise QuestError("This quest isn't checked off.", 409)
-            return self.undo(done["entry"])
+            if target == current and done and done["period"] == current:
+                entry_id = done["entry"]
+            else:
+                try:
+                    entry_id = self._entries_for(q["kind"], target).get(q["id"])
+                except StorageError as e:
+                    raise QuestError(f"Can't read the history: {e}", 502)
+            if not entry_id:
+                raise QuestError("This quest isn't checked off for that period.", 409)
+            return self.undo(entry_id)
 
     def undo(self, entry_id: str) -> dict:
         """Remove a history entry and take back what it did: untick the recurring quest if it's

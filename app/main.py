@@ -171,17 +171,25 @@ async def delete_quest(qid: str, request: Request):
 
 
 @app.post("/api/quests/{qid}/done")
-async def check_off(qid: str, request: Request):
+async def check_off(qid: str, request: Request, period: str | None = None):
+    """Check a quest off now, or (daily/weekly/monthly quests) for an earlier `period`."""
     _require(request)
-    entry = await asyncio.to_thread(QL.complete, qid)
+    entry = await asyncio.to_thread(QL.complete, qid, period)
     return {"entry": entry, **await _view()}
 
 
 @app.post("/api/quests/{qid}/undone")
-async def uncheck(qid: str, request: Request):
+async def uncheck(qid: str, request: Request, period: str | None = None):
     _require(request)
-    await asyncio.to_thread(QL.uncheck, qid)
+    await asyncio.to_thread(QL.uncheck, qid, period)
     return await _view()
+
+
+@app.get("/api/period")
+async def period(kind: str, request: Request, period: str | None = None):
+    """Which daily/weekly/monthly quests were checked off in a period (default: the current one)."""
+    _require(request)
+    return await asyncio.to_thread(QL.period_view, kind, period)
 
 
 class Order(BaseModel):

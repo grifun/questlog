@@ -143,11 +143,80 @@ function dueInfo(due) {
   return { cls: "", text: `⏳ deadline ${label}` };
 }
 
+// ---------- earlier periods of daily/weekly/monthly quests ----------
+
+const RECURRING = ["daily", "weekly", "monthly"];
+// What each recurring section shows: null = the current period, otherwise a /api/period response
+// for an earlier day/week/month ({period, start, end, prev, next, done: {quest id: entry id}}).
+const viewing = { daily: null, weekly: null, monthly: null };
+
+function shortDate(iso, withYear) {
+  return parseIso(iso).toLocaleDateString(DATE_LOCALE,
+    { weekday: "short", day: "numeric", month: "numeric", year: withYear ? "numeric" : undefined });
+}
+
+function periodLabel(kind, view) {
+  const cur = state.periods[kind];
+  if (!view) return { daily: "Today", weekly: "This week", monthly: "This month" }[kind];
+  if (view.period === cur.prev) return { daily: "Yesterday", weekly: "Last week", monthly: "Last month" }[kind];
+  const sameYear = view.start.slice(0, 4) === state.today.slice(0, 4);
+  if (kind === "daily") return shortDate(view.start, !sameYear);
+  if (kind === "monthly") return capitalize(parseIso(view.start).toLocaleDateString(DATE_LOCALE, { month: "long", year: "numeric" }));
+  const dm = iso => parseIso(iso).toLocaleDateString(DATE_LOCALE, { day: "numeric", month: "numeric" });
+  return `${dm(view.start)} – ${dm(view.end)}${sameYear ? "" : " " + view.end.slice(0, 4)}`;
+}
+
+/** Switch a section to another period (null = back to the current one). */
+async function showPeriod(kind, period) {
+  if (!period || period === state.periods[kind].period) {
+    viewing[kind] = null;
+  } else {
+    try {
+      viewing[kind] = await api("GET", `/api/period?kind=${kind}&period=${encodeURIComponent(period)}`);
+    } catch (e) {
+      if (e.status !== 401) flash(e.message);
+      return;
+    }
+  }
+  render();
+}
+
+function setupPeriodNav(group) {
+  const kind = group.dataset.kind;
+  const nav = document.createElement("div");
+  nav.className = "period-nav";
+  nav.innerHTML = `<button type="button" class="pn-prev" title="Earlier">‹</button>` +
+    `<button type="button" class="pn-label"></button>` +
+    `<button type="button" class="pn-next" title="Later">›</button>`;
+  $(".pn-prev", nav).addEventListener("click", () =>
+    showPeriod(kind, viewing[kind] ? viewing[kind].prev : state.periods[kind].prev));
+  $(".pn-next", nav).addEventListener("click", () => viewing[kind] && showPeriod(kind, viewing[kind].next));
+  $(".pn-label", nav).addEventListener("click", () => viewing[kind] && showPeriod(kind, null));
+  $("h2", group).after(nav);
+}
+
+function renderPeriodNav(group, kind) {
+  const view = viewing[kind];
+  group.classList.toggle("past", Boolean(view));
+  const label = $(".pn-label", group);
+  label.textContent = periodLabel(kind, view);
+  label.title = view ? "Back to the current " + { daily: "day", weekly: "week", monthly: "month" }[kind] : "";
+  label.disabled = !view;
+  $(".pn-next", group).disabled = !view;
+}
+
 function render() {
   if (!state) return;
   for (const group of $$(".group")) {
     const kind = group.dataset.kind;
     let quests = state.quests.filter(q => q.kind === kind);
+    const view = viewing[kind];
+    if (view) {
+      // An earlier period: done-ness comes from the history; quests created later aren't shown.
+      quests = quests.filter(q => !q.created || q.created.slice(0, 10) <= view.end)
+        .map(q => ({ ...q, done: q.id in view.done, period: view.period }));
+    }
+    if (kind !== "once") renderPeriodNav(group, kind);
     if (kind === "once") {
       // Dated quests first (soonest first), then the rest in their own order.
       quests = [...quests].sort((a, b) =>
@@ -160,7 +229,7 @@ function render() {
     if (!quests.length) {
       const li = document.createElement("li");
       li.className = "empty";
-      li.textContent = kind === "once" ? "No open quests." : `No ${kind} quests yet.`;
+      li.textContent = kind === "once" ? "No open quests." : view ? "No quests back then." : `No ${kind} quests yet.`;
       list.append(li);
     }
     const doneCount = quests.filter(q => q.done).length;
@@ -236,7 +305,10 @@ async function toggle(q) {
       const data = await act("POST", `/api/quests/${q.id}/done`);
       if (data) toast(`Done: ${q.title}`, () => act("POST", `/api/history/${encodeURIComponent(data.entry.id)}/undo`));
     } else {
-      await act("POST", `/api/quests/${q.id}/${q.done ? "undone" : "done"}`);
+      const forPeriod = q.period ? `?period=${encodeURIComponent(q.period)}` : "";
+      if (await act("POST", `/api/quests/${q.id}/${q.done ? "undone" : "done"}${forPeriod}`) && q.period) {
+        await showPeriod(q.kind, q.period);     // reload which quests are done in that period
+      }
     }
   } finally {
     busy = false;
@@ -391,7 +463,7 @@ function dayLabel(day) {
     year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric" }));
 }
 
-const KIND_LABEL = { daily: "daily", weekly: "weekly", once: "quest" };
+const KIND_LABEL = { daily: "daily", weekly: "weekly", monthly: "monthly", once: "quest" };
 
 function renderHistory() {
   const text = $("#history-search").value.trim().toLowerCase();
@@ -418,7 +490,14 @@ function renderHistory() {
       const row = document.createElement("div");
       row.className = "entry";
       const time = document.createElement("time");
-      time.textContent = e.at.slice(11, 16);
+      if (e.backfilled) {
+        // Checked off later for an earlier period: there's no real time of day.
+        time.textContent = "—";
+        time.className = "later";
+        time.title = "Checked off later" + (e.recorded ? `, on ${shortDate(e.recorded.slice(0, 10), true)} ${e.recorded.slice(11, 16)}` : "");
+      } else {
+        time.textContent = e.at.slice(11, 16);
+      }
       const badge = document.createElement("span");
       badge.className = "badge " + e.kind;
       badge.textContent = KIND_LABEL[e.kind] || e.kind;
@@ -451,6 +530,7 @@ $("#history-kind").addEventListener("change", renderHistory);
 
 // ---------- start, and stay in sync ----------
 
+$$(".group").filter(g => RECURRING.includes(g.dataset.kind)).forEach(setupPeriodNav);
 setAddKind("once");
 showTab(currentTab());
 load();
