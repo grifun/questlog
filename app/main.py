@@ -203,6 +203,33 @@ async def reorder(body: Order, request: Request):
     return await _view()
 
 
+# ---------- scratchpad notes ----------
+
+class NoteIn(BaseModel):
+    text: str
+
+
+@app.post("/api/notes")
+async def add_note(body: NoteIn, request: Request):
+    _require(request)
+    note = await asyncio.to_thread(QL.add_note, body.model_dump())
+    return {"note": note, **await _view()}
+
+
+@app.put("/api/notes/{nid}")
+async def save_note(nid: str, body: NoteIn, request: Request):
+    _require(request)
+    note = await asyncio.to_thread(QL.update_note, nid, body.model_dump())
+    return {"note": note, **await _view()}
+
+
+@app.delete("/api/notes/{nid}")
+async def delete_note(nid: str, request: Request):
+    _require(request)
+    await asyncio.to_thread(QL.delete_note, nid)
+    return await _view()
+
+
 # ---------- history ----------
 
 @app.get("/api/history")

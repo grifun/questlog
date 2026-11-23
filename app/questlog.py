@@ -2,7 +2,7 @@
 
 Storage layout (relative to the local folder or the S3 bucket folder):
 
-    questlog.json                      active quests (small, rewritten on every change)
+    questlog.json                      active quests and scratchpad notes (rewritten on every change)
     history/2026-11.json               everything completed in November 2026
     backups/questlog-2026-11-21.json   the main file as it was before the first change of each day
 
@@ -11,6 +11,9 @@ Quest kinds:
     daily   checked off for today; unchecked again from local midnight
     weekly  checked off for this week; unchecked again from Monday, local midnight (ISO weeks)
     monthly checked off for this month; unchecked again on the 1st
+
+The scratchpad is a list of free-text notes kept in questlog.json too (key "scratchpad"), so they
+sync and get backed up the same way. Notes have no history; a deleted note is gone (bar the backups).
 
 Periods roll over lazily: a recurring quest stores the period it was last checked off in, and it
 shows as done only while that is the current period. Nothing has to run at midnight.
@@ -42,6 +45,7 @@ BACKUPS = "backups/"
 KINDS = ("once", "daily", "weekly", "monthly")
 RECURRING = ("daily", "weekly", "monthly")
 MAX_TITLE, MAX_NOTES, MAX_QUESTS = 200, 5000, 2000
+MAX_NOTE_TEXT, MAX_NOTE_COUNT = 100_000, 1000
 MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 HISTORY_PAGE = 50   # a history request returns whole months until it has at least this many entries
 
@@ -162,16 +166,39 @@ def _normalize_quest(q) -> dict | None:
     return out
 
 
+def _normalize_note(n) -> dict | None:
+    if not isinstance(n, dict) or not isinstance(n.get("text"), str):
+        return None
+    created = str(n.get("created") or "")
+    return {"id": str(n.get("id") or _new_id()), "text": n["text"],
+            "created": created, "updated": str(n.get("updated") or created)}
+
+
+def _clean_note_text(data: dict) -> str:
+    text = data.get("text")
+    if not isinstance(text, str):
+        raise QuestError("A note needs some text.")
+    text = text.replace("\r\n", "\n")
+    if len(text) > MAX_NOTE_TEXT:
+        raise QuestError(f"The note is too long (max {MAX_NOTE_TEXT} characters).")
+    return text
+
+
 def _normalize(data) -> dict:
     if not isinstance(data, dict):
         raise ValueError("the top level must be a JSON object")
-    quests, seen = [], set()
+    quests, notes, seen = [], [], set()
     for raw in data.get("quests") or []:
         q = _normalize_quest(raw)
         if q and q["id"] not in seen:
             seen.add(q["id"])
             quests.append(q)
-    return {"version": 1, "quests": quests}
+    for raw in data.get("scratchpad") or []:
+        n = _normalize_note(raw)
+        if n and n["id"] not in seen:
+            seen.add(n["id"])
+            notes.append(n)
+    return {"version": 1, "quests": quests, "scratchpad": notes}
 
 
 # ---------- the log ----------
@@ -263,6 +290,8 @@ class QuestLog:
                 # the current period of each recurring kind, and the one before it (for "‹" navigation)
                 "periods": {k: {"period": period_of(k, today), "prev": shift_period(k, period_of(k, today), -1)}
                             for k in RECURRING},
+                # newest edit first
+                "scratchpad": sorted(copy.deepcopy(self.state["scratchpad"]), key=lambda n: n["updated"], reverse=True),
                 "storage": self.backend.location,
                 "error": self.error,
             }
@@ -424,6 +453,39 @@ class QuestLog:
             self.state["quests"].append(q)
             return q
         return self._mutate(do)
+
+    # ----- scratchpad notes -----
+    def _find_note(self, nid: str) -> dict:
+        for n in self.state["scratchpad"]:
+            if n["id"] == nid:
+                return n
+        raise QuestError("That note doesn't exist (anymore).", 404)
+
+    def add_note(self, data: dict) -> dict:
+        text = _clean_note_text(data)
+
+        def do():
+            if len(self.state["scratchpad"]) >= MAX_NOTE_COUNT:
+                raise QuestError("Too many notes.")
+            now = self.now().isoformat(timespec="seconds")
+            n = {"id": _new_id(), "text": text, "created": now, "updated": now}
+            self.state["scratchpad"].append(n)
+            return copy.deepcopy(n)
+        return self._mutate(do)
+
+    def update_note(self, nid: str, data: dict) -> dict:
+        text = _clean_note_text(data)
+
+        def do():
+            n = self._find_note(nid)
+            if n["text"] != text:
+                n["text"] = text
+                n["updated"] = self.now().isoformat(timespec="seconds")
+            return copy.deepcopy(n)
+        return self._mutate(do)
+
+    def delete_note(self, nid: str) -> None:
+        self._mutate(lambda: self.state["scratchpad"].remove(self._find_note(nid)))
 
     def update(self, qid: str, data: dict) -> dict:
         def do():

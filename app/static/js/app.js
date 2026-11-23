@@ -70,7 +70,7 @@ function flash(msg) {
 
 function showLogin() {
   $("#login").hidden = false;
-  $("#quests").hidden = $("#history").hidden = true;
+  $("#quests").hidden = $("#history").hidden = $("#notes").hidden = true;
   $(".tabs").hidden = true;
   $("#password").focus();
 }
@@ -97,17 +97,22 @@ $("#logout").addEventListener("click", async () => {
 
 // ---------- tabs ----------
 
-function currentTab() { return location.hash === "#history" ? "history" : "quests"; }
+function currentTab() {
+  if (location.hash === "#history") return "history";
+  return location.hash.startsWith("#notes") ? "notes" : "quests";
+}
 
 function showTab(tab) {
   $$(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   $("#quests").hidden = tab !== "quests";
   $("#history").hidden = tab !== "history";
+  $("#notes").hidden = tab !== "notes";
   if (tab === "history") resetHistory();
+  if (typeof notesTab === "function") notesTab(tab === "notes");    // notes.js
 }
 
 $$(".tabs button").forEach(b => b.addEventListener("click", () => {
-  history.replaceState(null, "", b.dataset.tab === "history" ? "#history" : "#");
+  history.replaceState(null, "", b.dataset.tab === "quests" ? "#" : "#" + b.dataset.tab);
   showTab(b.dataset.tab);
 }));
 
@@ -128,6 +133,7 @@ function setState(s) {
   flash(s.error || "");
   if ($("#login").hidden === false) { $("#login").hidden = true; $(".tabs").hidden = false; showTab(currentTab()); }
   render();
+  if (typeof notesOnState === "function") notesOnState();          // notes.js
 }
 
 function dueInfo(due) {

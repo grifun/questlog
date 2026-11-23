@@ -328,6 +328,57 @@ dialog::backdrop { background: rgba(10, 5, 2, .65); }
 }
 .toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
+/* ---------- scratchpad notes ---------- */
+#notes { max-width: 800px; margin: 0 auto; }
+.notes-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.notes-list .empty { color: #e0c27a; text-align: center; padding: 24px 0; }
+.note-card {
+  display: grid; gap: 2px; padding: 10px 14px; text-decoration: none; color: var(--ink);
+  border: 1px solid var(--gold-deep); border-radius: 4px;
+  background: linear-gradient(180deg, var(--parch), var(--parch-2));
+  box-shadow: inset 0 0 14px rgba(120, 80, 30, .25);
+}
+.note-card:hover, .note-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.note-card strong { font-size: 1.08rem; color: var(--heading); overflow-wrap: anywhere; }
+.note-card .preview {
+  color: var(--ink-soft); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.note-card .preview:empty { display: none; }
+.note-card .meta { font-size: .82rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+.note { min-height: 60vh; display: flex; flex-direction: column; gap: 10px; }
+.note-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.note-status { font-style: italic; color: var(--ink-soft); font-size: .9rem; }
+.note-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.note-tools button {
+  min-width: 36px; height: 34px; padding: 0 8px; border: 1px solid var(--parch-edge); border-radius: 4px;
+  background: #fffaf0; color: var(--ink); font-weight: 700;
+}
+.note-tools button:hover { background: #fff; border-color: var(--gold-deep); }
+.note-help { margin-left: 6px; font-size: .8rem; color: var(--ink-soft); }
+#note-text {
+  flex: 1; min-height: 55vh; resize: vertical; line-height: 1.45; font-size: 1.08rem;
+}
+
+/* the formatted note */
+.md { flex: 1; min-height: 40vh; cursor: text; line-height: 1.45; font-size: 1.08rem; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md p { margin: 0 0 8px; }
+.md h2, .md h3, .md h4 { font-family: var(--display); color: var(--heading); margin: 14px 0 6px; line-height: 1.2; }
+.md h2 { font-size: 1.4rem; border-bottom: 1px solid var(--parch-edge); padding-bottom: 3px; }
+.md h3 { font-size: 1.15rem; }
+.md h4 { font-size: 1rem; }
+.md .gap { height: 8px; }
+.md .li { display: flex; align-items: baseline; gap: 8px; padding: 2px 0 2px calc(var(--level, 0) * 22px + 4px); }
+.md .li .marker { flex: none; min-width: 1.1em; color: var(--heading); font-weight: 700; text-align: right; }
+.md .li input[type=checkbox] {
+  flex: none; width: 1.15em; height: 1.15em; margin: 0; transform: translateY(.15em);
+  accent-color: var(--ok); cursor: pointer;
+}
+.md .li.checked > span { text-decoration: line-through; color: var(--ink-soft); }
+.md .empty { padding: 0; }
+
 @media (max-width: 860px) {
   .group .hint { display: none; }
 }
@@ -355,4 +406,6 @@ dialog::backdrop { background: rgba(10, 5, 2, .65); }
   .quest .handle { display: none; }            /* drag needs room; reorder on a wider screen */
   .quest .actions { flex-direction: column; gap: 0; }
   .quest .icon { padding: 0 3px; font-size: .85rem; }
+  .note-help { display: none; }
+  .note-tools button { min-width: 40px; height: 38px; }
 }

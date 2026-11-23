@@ -22,6 +22,7 @@
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="quests" aria-selected="true">Quests</button>
       <button role="tab" data-tab="history" aria-selected="false">History</button>
+      <button role="tab" data-tab="notes" aria-selected="false">Notes</button>
     </nav>
     <button class="ghost small" id="logout" hidden>Log out</button>
   </header>
@@ -94,6 +95,38 @@
       <div id="history-list"></div>
       <div id="history-more" class="muted center"></div>
     </section>
+
+    <!-- scratchpad notes: a list, and one note at a time (#notes/<id>) -->
+    <section id="notes" hidden>
+      <div id="notes-index">
+        <div class="history-tools">
+          <input type="search" id="notes-search" placeholder="Search notes…">
+          <button type="button" class="primary" id="note-new">+ New note</button>
+        </div>
+        <ul id="notes-list" class="notes-list"></ul>
+      </div>
+
+      <div id="note" class="page note" hidden>
+        <div class="note-bar">
+          <button type="button" class="ghost small" id="note-back">‹ Notes</button>
+          <span class="note-status" id="note-status"></span>
+          <span class="spacer"></span>
+          <button type="button" class="ghost small" id="note-mode">Edit</button>
+          <button type="button" class="danger small" id="note-delete">Delete</button>
+        </div>
+        <div class="note-tools" id="note-tools" hidden>
+          <button type="button" data-fmt="h" title="Heading (press again for a smaller one)">H</button>
+          <button type="button" data-fmt="ul" title="Bullet list">•</button>
+          <button type="button" data-fmt="ol" title="Numbered list">1.</button>
+          <button type="button" data-fmt="cb" title="Checkbox">☐</button>
+          <button type="button" data-fmt="b" title="Bold"><b>B</b></button>
+          <span class="note-help">#&nbsp;heading · -&nbsp;list · -&nbsp;[&nbsp;]&nbsp;checkbox · **bold**</span>
+        </div>
+        <textarea id="note-text" hidden spellcheck="true"
+          placeholder="Write anything…&#10;&#10;# Heading&#10;- list item&#10;- [ ] checkbox"></textarea>
+        <div id="note-render" class="md"></div>
+      </div>
+    </section>
   </main>
 
   <dialog id="edit">
@@ -135,5 +168,6 @@
 
   <script src="/static/js/datefield.js"></script>
   <script src="/static/js/app.js"></script>
+  <script src="/static/js/notes.js"></script>
 </body>
 </html>

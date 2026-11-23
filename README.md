@@ -15,12 +15,22 @@ The **History** tab lists everything you've checked off, newest first and groupe
 
 Click a quest (or its ✎) to edit its title, notes, kind or deadline. 🗑 deletes it after a confirmation (its history stays). Drag the **⋮⋮** handle to reorder.
 
+The **Notes** tab is a scratchpad: free-text notes you can create, edit and delete (after a confirmation). Notes save automatically as you type and are listed newest edit first, with a search box. A note opens formatted. Tick its checkboxes right there, or tap the text (or **Edit**) to change it. Formatting uses Markdown-style shortcuts, and the toolbar buttons (H, •, 1., ☐, B) add them for you:
+
+```
+# Heading          ## Smaller heading      ### Smallest
+- bullet           1. numbered             - [ ] checkbox      - [x] ticked
+  - indented (two spaces, or Tab)          **bold**
+```
+
+Pressing Enter in a list starts the next item, and Enter on an empty item ends the list. Notes live in `questlog.json` too, so they sync and are backed up like the quests. A deleted note doesn't go to the history; only the daily backups still have it.
+
 ## Storage
 
 Plain JSON files, either in a local folder or in an S3 bucket folder:
 
 ```
-questlog.json                      active quests (rewritten on every change)
+questlog.json                      active quests and notes (rewritten on every change)
 history/2026-11.json               everything checked off in November 2026, one file per month
 backups/questlog-2026-11-21.json   questlog.json as it was before that day's first change
 ```
@@ -63,6 +73,6 @@ Same as azkviz. Use the Render blueprint (`render.yaml`) or the `Dockerfile`. Ru
 app/main.py         HTTP routes + password login
 app/questlog.py     quests, daily/weekly/monthly periods, history months, sync with storage
 app/storage.py      local folder or S3 backend
-app/static/         index.html, css/style.css, js/app.js, js/datefield.js (calendar picker)
+app/static/         index.html, css/style.css, js/app.js, js/datefield.js (calendar picker), js/notes.js (Notes tab), manifest.webmanifest and icons/ (home-screen icon)
 tests/test_questlog.py
 ```

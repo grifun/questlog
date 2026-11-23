@@ -352,3 +352,54 @@ def test_api_periods(client):
     assert client.get("/api/period?kind=monthly").json()["done"] == {}
     assert client.post(f"/api/quests/{qid}/undone?period=2026-10").status_code == 200
     assert client.get("/api/period?kind=monthly&period=2026-12").status_code == 400
+
+
+# ---------- scratchpad notes ----------
+
+def test_notes_add_edit_delete(ql, clock, tmp_path):
+    q = ql.add({"title": "Run", "kind": "daily"})
+    a = ql.add_note({"text": "# Shopping\n- [ ] milk\n- [x] eggs"})
+    clock.set(2026, 11, 21, 11, 0)
+    b = ql.add_note({"text": "second"})
+    assert [n["id"] for n in ql.view()["scratchpad"]] == [b["id"], a["id"]]      # newest edit first
+    clock.set(2026, 11, 21, 12, 0)
+    edited = ql.update_note(a["id"], {"text": "# Shopping\r\n- [x] milk"})
+    assert edited["text"] == "# Shopping\n- [x] milk" and edited["updated"].startswith("2026-11-21T12:00")
+    assert edited["created"].startswith("2026-11-21T10:00")
+    assert ql.view()["scratchpad"][0]["id"] == a["id"]
+    clock.set(2026, 11, 21, 13, 0)
+    assert ql.update_note(a["id"], {"text": "# Shopping\n- [x] milk"})["updated"].startswith("2026-11-21T12:00")
+    # stored next to the quests and survives a reload
+    data = json.loads((tmp_path / "questlog.json").read_text())
+    assert len(data["scratchpad"]) == 2 and data["quests"][0]["id"] == q["id"]
+    again = QuestLog(LocalBackend(tmp_path), clock=clock)
+    assert {n["text"] for n in again.view()["scratchpad"]} == {"# Shopping\n- [x] milk", "second"}
+    ql.delete_note(b["id"])
+    assert [n["id"] for n in ql.view()["scratchpad"]] == [a["id"]]
+    with pytest.raises(QuestError):
+        ql.delete_note(b["id"])
+    with pytest.raises(QuestError):
+        ql.add_note({"text": None})
+    with pytest.raises(QuestError):
+        ql.add_note({"text": "x" * 100_001})
+
+
+def test_old_files_without_notes_load(tmp_path, clock):
+    (tmp_path / "questlog.json").write_text(json.dumps({"version": 1, "quests": [
+        {"id": "a1", "title": "Run", "kind": "daily"}]}))
+    ql = QuestLog(LocalBackend(tmp_path), clock=clock)
+    assert ql.view()["scratchpad"] == [] and ql.error is None
+
+
+def test_api_notes(client):
+    client.post("/api/login", json={"password": "sesame"})
+    r = client.post("/api/notes", json={"text": "hello"})
+    nid = r.json()["note"]["id"]
+    assert r.json()["scratchpad"][0]["text"] == "hello"
+    assert client.put(f"/api/notes/{nid}", json={"text": "hello world"}).json()["note"]["text"] == "hello world"
+    assert client.put("/api/notes/nope", json={"text": "x"}).status_code == 404
+    assert client.post("/api/notes", json={}).status_code == 422
+    assert client.delete(f"/api/notes/{nid}").json()["scratchpad"] == []
+    client.post("/api/logout")
+    client.cookies.clear()
+    assert client.post("/api/notes", json={"text": "x"}).status_code == 401
